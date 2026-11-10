@@ -1,6 +1,6 @@
 // Service worker mínimo: permite instalar la app y abrirla sin conexión.
 // Los datos en vivo (ntfy.sh) nunca se guardan en caché.
-const CACHE = 'cmj-v1';
+const CACHE = 'cmj-v3';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

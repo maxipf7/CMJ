@@ -71,6 +71,12 @@
   .demo-tag { font-size: 10px; font-weight: 700; color: #000; background: var(--mut); border-radius: 4px; padding: 1px 5px; margin-left: 6px; }
   .toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); background: #222; color: #fff; padding: 10px 16px; border-radius: 12px; font-size: 14px; opacity: 0; transition: opacity .3s; pointer-events: none; }
   .toast.show { opacity: 1; }
+  canvas { width: 100%; display: block; }
+  .ref-in { width: 70px; padding: 6px 8px; font-size: 14px; border-radius: 8px; text-align: right; }
+  .calib-big { font-size: 44px; color: var(--yellow); margin: 6px 0 2px; }
+  .kv { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #1d1d22; font-size: 14px; }
+  .kv:last-child { border-bottom: 0; }
+  .kv span:first-child { color: var(--mut); }
   .flash { animation: flash .6s; }
   @keyframes flash { 0% { background: var(--zone); } 100% { background: var(--card); } }
 </style>
@@ -107,6 +113,22 @@
         <div><div class="v num" id="vpV">—</div><div class="label">Promedio (cm)</div></div>
         <div><div class="v num" id="bestV">—</div><div class="label">Mejor</div></div>
       </div>
+    </div>
+
+    <div class="card" id="curveCard">
+      <div class="label" style="margin-bottom:8px">CURVA DEL ÚLTIMO SALTO · aceleración (g)</div>
+      <canvas id="curve" height="170"></canvas>
+      <div class="small" id="curveTxt" style="margin-top:6px;line-height:1.5">Aparece al registrar un salto. Zona amarilla = tiempo en el aire detectado.</div>
+    </div>
+
+    <div class="card" id="eurCard">
+      <div class="label" style="margin-bottom:10px">ÍNDICE DE UTILIZACIÓN ELÁSTICA (EUR) · HOY</div>
+      <div class="row3" style="margin-top:0;border-top:0;padding-top:0">
+        <div><div class="v num" id="eCmj">—</div><div class="label">Mejor CMJ (cm)</div></div>
+        <div><div class="v num" id="eSj">—</div><div class="label">Mejor SJ (cm)</div></div>
+        <div><div class="v num" id="eEur" style="color:var(--green)">—</div><div class="label">EUR · <span id="ePct">—</span></div></div>
+      </div>
+      <div class="small" id="eTxt" style="margin-top:10px;line-height:1.5">Haz al menos un CMJ y un SJ hoy (mismo atleta) para calcularlo.</div>
     </div>
 
     <div class="card">
@@ -153,10 +175,19 @@
       <button id="btnUnlink">Cambiar código</button>
     </div>
     <div class="card">
+      <div class="label" style="margin-bottom:8px">CALIBRACIÓN CON REFERENCIA</div>
+      <div id="calib"></div>
+      <p class="small" style="line-height:1.6;margin:10px 0 0">
+        1) Salta con el reloj y, al mismo tiempo, mide con la <b>plataforma</b> o <b>My Jump</b>.<br>
+        2) En <b>Historial</b> abre la sesión y escribe el valor de referencia de cada salto en la columna <b>Ref</b>.<br>
+        3) Aquí aparece el <b>ajuste recomendado</b>: ponlo en el reloj en <b>Ajuste de vuelo</b>.</p>
+    </div>
+    <div class="card">
       <div class="label" style="margin-bottom:8px">CÓMO SE CALCULA</div>
       <p class="small" style="line-height:1.6;margin:0">
         <b>Tiempo de vuelo</b>: tiempo en el aire, detectado porque en caída libre el acelerómetro marca ~0 g.<br>
         <b>Altura</b>: h = g · tv² / 8 (mismo principio que plataformas de contacto y My Jump).<br>
+        <b>Ajuste de vuelo</b>: milisegundos que se suman al vuelo medido para corregir el desfase sistemático del sensor (se obtiene con la calibración).<br>
         <b>Caída</b>: cuánto bajó cada salto respecto al mejor de la sesión (indicador de fatiga). Verde &lt; mitad del corte, amarillo &lt; corte, rojo ≥ corte.</p>
     </div>
     <div class="card">
@@ -208,7 +239,7 @@
     document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
     document.querySelector('.tabs').classList.toggle('hidden', !linked);
     if (v === 'hist') renderHist();
-    if (v === 'set') $('setCode').textContent = code;
+    if (v === 'set') { $('setCode').textContent = code; renderCalib(); }
   }
   document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => show(b.dataset.v));
 
@@ -242,11 +273,15 @@
                     reps: [], end: false };
     }
     const S = series[s];
+    if (d.tipo) { S.ex = d.tipo; }               // CMJ / SJ elegido en el reloj
+    if (d.aj != null) { S.aj = d.aj; }           // ajuste de vuelo del reloj (ms)
+    if (d.hz) { S.hz = d.hz; }
     if (d.t === 'start') { current = s; }
     if (d.t === 'rep') {
       current = s;
       if (!S.reps.some(x => x.r === d.r)) {
-        S.reps.push({ r: d.r, h: d.h, tv: d.tv, loss: d.loss });
+        S.reps.push({ r: d.r, h: d.h, tv: d.tv, loss: d.loss, tipo: d.tipo || S.ex,
+                      tv0: d.tv0, aj: d.aj, hz: d.hz, sg: Array.isArray(d.sg) ? d.sg : null, so: d.so, sl: d.sl });
         S.reps.sort((a, b) => a.r - b.r);
         if (navigator.vibrate) { const z = zone(d.loss, S.cut); navigator.vibrate(z === 'r' ? [300, 120, 300, 120, 300] : z === 'y' ? [100, 80, 100] : 80); }
         flash = true;
@@ -284,7 +319,7 @@
     const loss = last ? last.loss : 0;
     const z = zone(loss, cut);
     document.documentElement.style.setProperty('--zone', COLORS[z]);
-    $('repPill').innerHTML = S ? (last ? `SALTO ${last.r}` : 'Sesión iniciada') + (S.demo ? '<span class="demo-tag">DEMO</span>' : '') + (S.end ? ' · fin' : '') : 'Esperando sesión…';
+    $('repPill').innerHTML = S ? (last ? `${(S.ex || 'SALTO').toUpperCase()} ${last.r}` : 'Sesión iniciada') + (S.demo ? '<span class="demo-tag">DEMO</span>' : '') + (S.end ? ' · fin' : '') : 'Esperando sesión…';
     $('lossPill').textContent = '−' + Math.round(loss) + '%';
     $('bigV').textContent = last ? f1(last.h) : '—';
     $('vmV').textContent = last ? f3(last.tv) : '—';
@@ -301,12 +336,119 @@
       return `<tr><td><span class="z" style="background:${COLORS[zone(l, cut)]}"></span>${x.r}</td><td><b>${f1(x.h)}</b></td><td>${f3(x.tv)}</td><td>${Math.round(x.loss)}%</td></tr>`;
     }).join('');
     $('liveEmpty').classList.toggle('hidden', reps.length > 0);
+    renderEUR();
+    drawCurve(last);
     if (flash) { flash = false; const c = $('heroCard'); c.classList.remove('flash'); void c.offsetWidth; c.classList.add('flash'); }
+  }
+
+  // ------------------------------------------------------------- curva del salto
+  function drawCurve(x) {
+    const cv = $('curve'), ctx = cv.getContext('2d');
+    const dpr = window.devicePixelRatio || 1, W = cv.clientWidth || 300, H = 170;
+    cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+    if (!x || !x.sg || x.sg.length < 3) { $('curveCard').classList.toggle('hidden', !x); return; }
+    $('curveCard').classList.remove('hidden');
+    const g = x.sg.map(v => v / 100), n = g.length, hz = x.hz || 25;
+    const top = Math.max(3, Math.ceil(Math.max(...g))), L = 26, B = 18, pw = W - L - 6, ph = H - B - 8;
+    const X = i => L + pw * i / (n - 1), Y = v => 8 + ph * (1 - v / top);
+    // vuelo detectado
+    if (x.so != null && x.sl != null) {
+      ctx.fillStyle = 'rgba(255,200,40,.16)'; ctx.fillRect(X(x.so), 8, X(x.sl) - X(x.so), ph);
+      ctx.strokeStyle = 'rgba(255,200,40,.8)'; ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
+      [x.so, x.sl].forEach(i => { ctx.beginPath(); ctx.moveTo(X(i), 8); ctx.lineTo(X(i), 8 + ph); ctx.stroke(); });
+    }
+    // guías 0 g y 1 g
+    ctx.font = '10px Inter, sans-serif'; ctx.fillStyle = '#9a9aa2'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (let v = 0; v <= top; v++) {
+      ctx.strokeStyle = v === 1 ? '#3a3a42' : '#222228'; ctx.setLineDash(v === 1 ? [4, 4] : []);
+      ctx.beginPath(); ctx.moveTo(L, Y(v)); ctx.lineTo(L + pw, Y(v)); ctx.stroke(); ctx.fillText(v + ' g', L - 4, Y(v));
+    }
+    ctx.setLineDash([]);
+    // señal
+    ctx.strokeStyle = '#3cdc64'; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.beginPath();
+    g.forEach((v, i) => i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v))); ctx.stroke();
+    ctx.fillStyle = '#3cdc64'; g.forEach((v, i) => { ctx.beginPath(); ctx.arc(X(i), Y(v), 1.8, 0, 7); ctx.fill(); });
+    // eje de tiempo
+    ctx.fillStyle = '#9a9aa2'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    const dur = (n - 1) / hz;
+    for (let t = 0; t <= dur + 1e-6; t += 0.25) ctx.fillText(t.toFixed(2) + ' s', X(t * hz), H - 3);
+    const t0 = x.tv0 != null ? x.tv0 : x.tv;
+    $('curveTxt').innerHTML = `Vuelo medido <b>${f3(t0)} s</b>` + (x.aj ? ` · ajuste ${x.aj > 0 ? '+' : ''}${x.aj} ms → <b>${f3(x.tv)} s</b>` : '') +
+      ` · ${n} muestras a ${hz} Hz. Zona amarilla = tiempo en el aire detectado.`;
+  }
+
+  // ------------------------------------------------------------- calibración con referencia
+  const G = 9.80665;
+  const hFromTv = t => G * t * t / 8 * 100;
+  const tvFromH = h => Math.sqrt(8 * h / 100 / G);
+  const rawTv = x => x.tv0 != null ? Number(x.tv0) : Number(x.tv) - (Number(x.aj) || 0) / 1000;
+  const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
+  const sd = a => { const m = mean(a); return Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / Math.max(a.length - 1, 1)); };
+  function pearson(a, b) {
+    const ma = mean(a), mb = mean(b); let n = 0, da = 0, db = 0;
+    a.forEach((v, i) => { n += (v - ma) * (b[i] - mb); da += (v - ma) ** 2; db += (b[i] - mb) ** 2; });
+    return da && db ? n / Math.sqrt(da * db) : null;
+  }
+  function calibData() {
+    const P = [];
+    Object.values(series).forEach(S => { if (S.demo) return; S.reps.forEach(x => { if (x.ref > 0) P.push({ x, ref: Number(x.ref), t0: rawTv(x) }); }); });
+    return P;
+  }
+  function renderCalib() {
+    const P = calibData(), box = $('calib'); if (!box) return;
+    if (!P.length) { box.innerHTML = '<div class="small" style="line-height:1.5">Todavía no hay saltos con valor de referencia.</div>'; return; }
+    const d = P.map(p => (tvFromH(p.ref) - p.t0) * 1000);               // ms que faltan (o sobran) al vuelo medido
+    let rec = Math.round(mean(d) / 5) * 5; rec = Math.max(-60, Math.min(120, rec));
+    const errNow = P.map(p => Number(p.x.h) - p.ref);
+    const errNew = P.map(p => hFromTv(p.t0 + rec / 1000) - p.ref);
+    const r = P.length >= 3 ? pearson(P.map(p => p.t0), P.map(p => p.ref)) : null;
+    const curAj = (series[current] && series[current].aj) || 0;
+    const sg = v => (v >= 0 ? '+' : '') + v;
+    box.innerHTML = `
+      <div class="small">Ajuste recomendado para el reloj</div>
+      <div class="num calib-big">${sg(rec)} ms</div>
+      <div class="small" style="margin-bottom:8px">${P.length < 5 ? 'Con pocos saltos el ajuste es poco confiable: ideal 8 a 10.' : 'Reloj → Toca → <b>Ajuste de vuelo</b> → elige este valor.'}</div>
+      <div class="kv"><span>Saltos con referencia</span><span>${P.length}</span></div>
+      <div class="kv"><span>Ajuste actual del reloj</span><span>${sg(curAj)} ms</span></div>
+      <div class="kv"><span>Diferencia actual (reloj − ref.)</span><span>${f1(mean(errNow))} cm (±${f1(sd(errNow))})</span></div>
+      <div class="kv"><span>Con el ajuste recomendado</span><span>${f1(mean(errNew))} cm (±${f1(sd(errNew))})</span></div>
+      <div class="kv"><span>Error absoluto con el ajuste</span><span>${f1(mean(errNew.map(Math.abs)))} cm</span></div>
+      ${r != null ? `<div class="kv"><span>Correlación con la referencia (r)</span><span>${r.toFixed(2)}</span></div>` : ''}`;
+  }
+
+  // ------------------------------------------------------------- EUR = CMJ / SJ
+  const isSJ = t => /SJ|SQUAT/i.test(t || '');
+  function eurFor(athlete, day) {
+    let cmj = 0, sj = 0;
+    Object.values(series).forEach(S => {
+      if (!S.reps.length || new Date(S.s * 1000).toDateString() !== day) return;
+      if ((S.kg || '').trim().toLowerCase() !== (athlete || '').trim().toLowerCase()) return;
+      const best = Math.max(...S.reps.map(x => x.h));
+      if (isSJ(S.ex)) sj = Math.max(sj, best); else cmj = Math.max(cmj, best);
+    });
+    return { cmj, sj, eur: (cmj && sj) ? cmj / sj : null };
+  }
+  function eurText(e) {
+    if (e < 1.0) return 'SJ ≥ CMJ: revisa la técnica del CMJ (bajar y subir sin pausa).';
+    if (e < 1.05) return 'Bajo aprovechamiento elástico: el CMJ casi no supera al SJ. Pliometría y trabajo reactivo pueden ayudar.';
+    if (e <= 1.15) return 'Aprovechamiento elástico dentro de lo habitual.';
+    return 'Alto aprovechamiento del ciclo estiramiento-acortamiento.';
+  }
+  function renderEUR() {
+    const S = current && series[current];
+    const day = S ? new Date(S.s * 1000).toDateString() : new Date().toDateString();
+    const r = eurFor(S ? S.kg : '', day);
+    $('eCmj').textContent = r.cmj ? f1(r.cmj) : '—';
+    $('eSj').textContent = r.sj ? f1(r.sj) : '—';
+    $('eEur').textContent = r.eur ? r.eur.toFixed(2) : '—';
+    $('ePct').textContent = r.eur ? ((r.eur - 1) * 100 >= 0 ? '+' : '') + ((r.eur - 1) * 100).toFixed(0) + '%' : '—';
+    $('eTxt').textContent = r.eur ? eurText(r.eur) + ' (orientativo; lo más útil es seguir tu evolución)'
+                                  : 'Haz al menos un CMJ y un SJ hoy (mismo atleta) para calcularlo.';
   }
 
   // ejercicio y carga de la serie actual
   $('exIn').oninput = () => { if (current && series[current]) { series[current].ex = $('exIn').value; save(); } };
-  $('kgIn').oninput = () => { if (current && series[current]) { series[current].kg = $('kgIn').value; save(); } };
+  $('kgIn').oninput = () => { if (current && series[current]) { series[current].kg = $('kgIn').value; save(); renderEUR(); } };
 
   // ---------------------------------------------------------- historial
   function sortedSeries() { return Object.values(series).filter(S => S.reps.length).sort((a, b) => b.s - a.s); }
@@ -335,9 +477,15 @@
       <div class="small">${fmtDate(S.s)} · corte ${Math.round(S.cut)}%</div></div>
       <button class="sm danger" style="margin-left:auto" id="delS">Borrar</button></div>
       <div style="height:30px"></div><div class="bars" id="dBars"></div><div style="height:26px"></div>
-      <table><thead><tr><th>Salto</th><th>Altura cm</th><th>Vuelo s</th><th>Caída</th></tr></thead><tbody>
-      ${S.reps.map(x => `<tr><td>${x.r}</td><td><b>${f1(x.h)}</b></td><td>${f3(x.tv)}</td><td>${Math.round(x.loss)}%</td></tr>`).join('')}
-      </tbody></table>`;
+      <table><thead><tr><th>Salto</th><th>Altura cm</th><th>Vuelo s</th><th>Caída</th><th>Ref cm</th></tr></thead><tbody>
+      ${S.reps.map((x, i) => `<tr><td>${x.r}</td><td><b>${f1(x.h)}</b></td><td>${f3(x.tv)}</td><td>${Math.round(x.loss)}%</td>
+        <td><input class="ref-in" inputmode="decimal" data-i="${i}" value="${x.ref ? String(x.ref).replace('.', ',') : ''}" placeholder="—"></td></tr>`).join('')}
+      </tbody></table>
+      <div class="small" style="margin-top:8px;line-height:1.5"><b>Ref</b>: altura del mismo salto medida con plataforma o My Jump (para calibrar; ver Ajustes).</div>`;
+    box.querySelectorAll('.ref-in').forEach(inp => inp.onchange = () => {
+      const v = parseFloat(inp.value.replace(',', '.'));
+      S.reps[inp.dataset.i].ref = v > 0 ? v : undefined; save(); toast(v > 0 ? 'Referencia guardada' : 'Referencia borrada');
+    });
     renderBars($('dBars'), S.reps, S.cut);
     $('delS').onclick = () => { if ($('delS').dataset.ok) { delete series[s]; if (current === s) current = null; save(); renderHist(); renderLive(); toast('Serie borrada'); } else { $('delS').dataset.ok = 1; $('delS').textContent = '¿Seguro?'; } };
     box.scrollIntoView({ behavior: 'smooth' });
@@ -345,11 +493,13 @@
 
   // CSV para Excel (separador ; y coma decimal, formato Chile)
   $('btnCsv').onclick = () => {
-    const rows = [['Fecha', 'Hora', 'Ejercicio', 'Atleta', 'Serie', 'Demo', 'Corte_%', 'Hz', 'Salto', 'Altura_cm', 'Vuelo_s', 'Caida_%']];
+    const rows = [['Fecha', 'Hora', 'Ejercicio', 'Atleta', 'Serie', 'Demo', 'Corte_%', 'Hz', 'Salto', 'Altura_cm', 'Vuelo_s', 'Caida_%', 'EUR_dia', 'Vuelo_medido_s', 'Ajuste_ms', 'Ref_cm', 'Curva_g', 'Despegue_muestra', 'Aterrizaje_muestra']];
     sortedSeries().reverse().forEach(S => {
       const d = new Date(S.s * 1000);
       S.reps.forEach(x => rows.push([d.toLocaleDateString('es-CL'), d.toLocaleTimeString('es-CL'), S.ex || '', S.kg || '', S.s, S.demo ? 'si' : 'no', S.cut, S.hz || '', x.r,
-        f1(x.h), f3(x.tv), Number(x.loss).toFixed(1)].map(v => String(v).replace('.', ','))));
+        f1(x.h), f3(x.tv), Number(x.loss).toFixed(1), (eurFor(S.kg, d.toDateString()).eur || '') && eurFor(S.kg, d.toDateString()).eur.toFixed(2),
+        f3(rawTv(x)), x.aj != null ? x.aj : '', x.ref ? f1(x.ref) : '', x.sg ? x.sg.map(v => (v / 100).toFixed(2)).join(' ') : '',
+        x.so != null ? Number(x.so).toFixed(2) : '', x.sl != null ? Number(x.sl).toFixed(2) : ''].map(v => String(v).replace(/\./g, ','))));
     });
     const csv = '﻿' + rows.map(r => r.map(v => /[;"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v).join(';')).join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -380,11 +530,18 @@
   if ('serviceWorker' in navigator && location.protocol === 'https:') { navigator.serviceWorker.register('sw.js').catch(() => {}); }
 
   // Para pruebas sin reloj: VBT.test()
-  window.VBT = { handle, test() {
+  window.VBT = { handle, testSJ() {
+    const s = Math.floor(Date.now() / 1000) + 5;
+    handle({ t: 'start', s, demo: 1, cut: 10, hz: 25, tipo: 'SJ' }, s);
+    [33.0, 32.4, 31.9].forEach((v, i) => setTimeout(() => handle({ t: 'rep', s, demo: 1, cut: 10, tipo: 'SJ', r: i + 1, h: v,
+      tv: Math.sqrt(8 * v / 100 / 9.80665), loss: (33 - v) / 33 * 100 }, s), i * 300));
+  }, test() {
     const s = Math.floor(Date.now() / 1000); let best = 0;
-    handle({ t: 'start', s, demo: 1, cut: 20, hz: 25 }, s);
+    handle({ t: 'start', s, demo: 1, cut: 10, hz: 25, tipo: 'CMJ' }, s);
     [38.2, 37.5, 36.9, 35.1, 34.0, 32.8, 31.6].forEach((v, i) => { best = Math.max(best, v);
-      setTimeout(() => handle({ t: 'rep', s, demo: 1, cut: 10, r: i + 1, h: v, tv: Math.sqrt(8 * v / 100 / 9.80665), loss: (best - v) / best * 100 }, s), i * 700); });
+      const tv = Math.sqrt(8 * v / 100 / 9.80665), hz = 25, pre = 10, nf = Math.round(tv * hz);
+      const sg = [100, 95, 80, 70, 85, 120, 170, 210, 190, 120, 40].concat(Array(nf).fill(3), [180, 320, 260, 170, 120, 105]).slice(0);
+      setTimeout(() => handle({ t: 'rep', s, demo: 1, cut: 10, tipo: 'CMJ', r: i + 1, h: v, tv, tv0: tv, aj: 0, hz, sg, so: pre + 0.6, sl: pre + 1 + nf + 0.1, loss: (best - v) / best * 100 }, s), i * 700); });
   } };
 
   show(code ? 'live' : 'link');
