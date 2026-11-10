@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CMJ">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>CMJ · Salto vertical</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,800;1,900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #000; --card: #121214; --card2: #1b1b1f; --line: #2a2a30;
+    --txt: #fff; --mut: #9a9aa2; --green: #3cdc64; --yellow: #ffc828; --red: #f03c3c;
+    --zone: var(--green);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--txt); font-family: Inter, system-ui, sans-serif; }
+  body { padding: env(safe-area-inset-top) 0 calc(72px + env(safe-area-inset-bottom)); min-height: 100vh; }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 14px 16px; }
+  h1 { font-size: 18px; margin: 4px 0 14px; display: flex; align-items: center; gap: 10px; }
+  h1 .logo { font-style: italic; font-weight: 900; color: var(--green); font-size: 22px; }
+  .status { margin-left: auto; font-size: 12px; font-weight: 500; color: var(--mut); display: flex; align-items: center; gap: 6px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #555; }
+  .dot.on { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .dot.err { background: var(--red); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px; margin-bottom: 14px; }
+  .label { font-size: 12px; color: var(--mut); font-weight: 500; letter-spacing: .3px; }
+  .num { font-style: italic; font-weight: 900; letter-spacing: -1px; }
+  .hero { text-align: center; position: relative; overflow: hidden; }
+  .hero .top { display: flex; justify-content: space-between; align-items: center; }
+  .pill { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 99px; background: var(--card2); color: var(--mut); }
+  .pill.zone { background: var(--zone); color: #000; }
+  .big { font-size: 96px; line-height: 1; color: var(--zone); margin: 14px 0 2px; transition: color .3s; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .row3 .v { font-size: 26px; }
+  .bar-wrap { position: relative; height: 10px; background: var(--card2); border-radius: 99px; margin-top: 14px; overflow: hidden; }
+  .bar-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--zone); border-radius: 99px; transition: width .4s, background .3s; }
+  .bars { display: flex; align-items: flex-end; gap: 6px; height: 120px; padding-top: 6px; }
+  .bars .b { flex: 1; border-radius: 6px 6px 3px 3px; position: relative; min-width: 8px; transition: height .3s; }
+  .bars .b span { position: absolute; bottom: -18px; left: 0; right: 0; text-align: center; font-size: 11px; color: var(--mut); }
+  .bars .b em { position: absolute; top: -17px; left: -4px; right: -4px; text-align: center; font-size: 10px; font-style: normal; color: var(--mut); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: right; color: var(--mut); font-weight: 500; font-size: 11px; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+  td { text-align: right; padding: 8px 4px; border-bottom: 1px solid #1d1d22; font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child { text-align: left; }
+  .z { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  input, select { width: 100%; background: var(--card2); color: var(--txt); border: 1px solid var(--line); border-radius: 12px; padding: 12px; font: inherit; font-size: 16px; }
+  .grid2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 12px; padding: 13px 16px; background: var(--card2); color: var(--txt); cursor: pointer; }
+  button.pri { background: var(--green); color: #000; }
+  button.danger { background: transparent; color: var(--red); border: 1px solid #3a1e1e; }
+  button.sm { padding: 8px 12px; font-size: 13px; }
+  .tabs { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(10,10,12,.96); border-top: 1px solid var(--line);
+          display: flex; padding-bottom: env(safe-area-inset-bottom); backdrop-filter: blur(10px); }
+  .tabs button { flex: 1; background: none; border-radius: 0; color: var(--mut); padding: 14px 0 12px; font-size: 13px; }
+  .tabs button.on { color: var(--green); }
+  .hidden { display: none !important; }
+  .empty { text-align: center; color: var(--mut); padding: 30px 10px; font-size: 14px; line-height: 1.5; }
+  .code-in { font-size: 30px; letter-spacing: 8px; text-align: center; text-transform: uppercase; font-weight: 700; }
+  .hist-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #1d1d22; cursor: pointer; }
+  .hist-item:last-child { border-bottom: 0; }
+  .hist-item .v { font-size: 22px; margin-left: auto; text-align: right; }
+  .small { font-size: 12px; color: var(--mut); }
+  .flex { display: flex; gap: 10px; align-items: center; }
+  .demo-tag { font-size: 10px; font-weight: 700; color: #000; background: var(--mut); border-radius: 4px; padding: 1px 5px; margin-left: 6px; }
+  .toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); background: #222; color: #fff; padding: 10px 16px; border-radius: 12px; font-size: 14px; opacity: 0; transition: opacity .3s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .flash { animation: flash .6s; }
+  @keyframes flash { 0% { background: var(--zone); } 100% { background: var(--card); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span class="logo">CMJ</span> Salto vertical
+    <span class="status"><span class="dot" id="dot"></span><span id="stxt">Sin enlace</span></span>
+  </h1>
+
+  <!-- ================= ENLACE ================= -->
+  <section id="v-link" class="hidden">
+    <div class="card">
+      <div class="label" style="margin-bottom:10px">CÓDIGO DEL RELOJ</div>
+      <input id="codeIn" class="code-in" maxlength="6" autocomplete="off" autocapitalize="characters" placeholder="ABC234">
+      <p class="small" style="line-height:1.5">Aparece abajo en la pantalla de inicio de la app <b>Salto CMJ</b> del reloj. El reloj debe estar conectado a la app <b>Garmin Connect</b> del celular (Bluetooth).</p>
+      <button class="pri" style="width:100%" id="btnLink">Enlazar</button>
+    </div>
+  </section>
+
+  <!-- ================= EN VIVO ================= -->
+  <section id="v-live" class="hidden">
+    <div class="card hero" id="heroCard">
+      <div class="top">
+        <span class="pill" id="repPill">Esperando sesión…</span>
+        <span class="pill zone" id="lossPill">−0%</span>
+      </div>
+      <div class="big num" id="bigV">—</div>
+      <div class="label">ALTURA DEL SALTO · cm</div>
+      <div class="bar-wrap"><div class="bar-fill" id="budget" style="width:100%"></div></div>
+      <div class="small" style="margin-top:6px" id="budgetTxt">Corte de pérdida: —</div>
+      <div class="row3">
+        <div><div class="v num" id="vmV">—</div><div class="label">Vuelo (s)</div></div>
+        <div><div class="v num" id="vpV">—</div><div class="label">Promedio (cm)</div></div>
+        <div><div class="v num" id="bestV">—</div><div class="label">Mejor</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="grid2">
+        <div><div class="label" style="margin-bottom:6px">Tipo de salto</div>
+          <input id="exIn" list="exList" placeholder="CMJ">
+          <datalist id="exList"><option>CMJ</option><option>CMJ con brazos</option><option>Squat jump</option><option>Drop jump</option></datalist>
+        </div>
+        <div><div class="label" style="margin-bottom:6px">Atleta</div>
+          <input id="kgIn" placeholder="Nombre"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="label" style="margin-bottom:22px">ALTURA POR SALTO</div>
+      <div class="bars" id="bars"></div>
+      <div style="height:22px"></div>
+    </div>
+
+    <div class="card">
+      <table><thead><tr><th>Salto</th><th>Altura cm</th><th>Vuelo s</th><th>Caída</th></tr></thead>
+        <tbody id="tbody"></tbody></table>
+      <div class="empty" id="liveEmpty">Inicia una sesión en el reloj (o el <b>Modo demo</b>) y los saltos aparecerán aquí.</div>
+    </div>
+  </section>
+
+  <!-- ================= HISTORIAL ================= -->
+  <section id="v-hist" class="hidden">
+    <div class="card">
+      <div class="flex" style="margin-bottom:6px">
+        <div class="label">SESIONES GUARDADAS EN ESTE CELULAR</div>
+        <button class="sm" style="margin-left:auto" id="btnCsv">Exportar CSV</button>
+      </div>
+      <div id="histList"></div>
+    </div>
+    <div class="card hidden" id="histDetail"></div>
+  </section>
+
+  <!-- ================= AJUSTES ================= -->
+  <section id="v-set" class="hidden">
+    <div class="card">
+      <div class="label">RELOJ ENLAZADO</div>
+      <div class="num" style="font-size:34px;margin:8px 0" id="setCode">—</div>
+      <button id="btnUnlink">Cambiar código</button>
+    </div>
+    <div class="card">
+      <div class="label" style="margin-bottom:8px">CÓMO SE CALCULA</div>
+      <p class="small" style="line-height:1.6;margin:0">
+        <b>Tiempo de vuelo</b>: tiempo en el aire, detectado porque en caída libre el acelerómetro marca ~0 g.<br>
+        <b>Altura</b>: h = g · tv² / 8 (mismo principio que plataformas de contacto y My Jump).<br>
+        <b>Caída</b>: cuánto bajó cada salto respecto al mejor de la sesión (indicador de fatiga). Verde &lt; mitad del corte, amarillo &lt; corte, rojo ≥ corte.</p>
+    </div>
+    <div class="card">
+      <button class="danger" style="width:100%" id="btnWipe">Borrar todo el historial</button>
+    </div>
+  </section>
+</div>
+
+<nav class="tabs">
+  <button data-v="live" class="on">● En vivo</button>
+  <button data-v="hist">Historial</button>
+  <button data-v="set">Ajustes</button>
+</nav>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  // ---------------------------------------------------------- almacenamiento
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+  let code = store.get('vbt_code', '');
+  let series = store.get('vbt_series', {});      // { s: {s, t0, demo, cut, hz, ex, kg, reps:[{r,ap,tc,loss}], end} }
+  let seen = new Set(store.get('vbt_seen', []));  // ids de ntfy ya procesados
+  let lastId = store.get('vbt_last', '');
+  let current = store.get('vbt_cur', null);
+  let es = null;
+
+  const $ = id => document.getElementById(id);
+  const COLORS = { g: '#3cdc64', y: '#ffc828', r: '#f03c3c' };
+  const zone = (loss, cut) => loss >= cut ? 'r' : (loss >= cut / 2 ? 'y' : 'g');
+  const f2 = v => (v == null || isNaN(v)) ? '—' : Number(v).toFixed(2);
+  const f1 = v => (v == null || isNaN(v)) ? '—' : Number(v).toFixed(1);
+  const f3 = v => (v == null || isNaN(v)) ? '—' : Number(v).toFixed(3);
+  const save = () => { store.set('vbt_series', series); store.set('vbt_seen', [...seen].slice(-800)); store.set('vbt_last', lastId); store.set('vbt_cur', current); };
+  const toast = (t) => { const el = $('toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove('show'), 2200); };
+  const fmtDate = (s) => { const d = new Date(s * 1000); return d.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }) + ' · ' + d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }); };
+
+  // ---------------------------------------------------------- vistas
+  let view = 'live';
+  function show(v) {
+    view = v;
+    const linked = !!code;
+    $('v-link').classList.toggle('hidden', linked);
+    $('v-live').classList.toggle('hidden', !linked || v !== 'live');
+    $('v-hist').classList.toggle('hidden', !linked || v !== 'hist');
+    $('v-set').classList.toggle('hidden', !linked || v !== 'set');
+    document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+    document.querySelector('.tabs').classList.toggle('hidden', !linked);
+    if (v === 'hist') renderHist();
+    if (v === 'set') $('setCode').textContent = code;
+  }
+  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => show(b.dataset.v));
+
+  // ---------------------------------------------------------- conexión (ntfy.sh, Server-Sent Events)
+  function setStatus(kind, txt) { $('dot').className = 'dot' + (kind === 'on' ? ' on' : kind === 'err' ? ' err' : ''); $('stxt').textContent = txt; }
+
+  function connect() {
+    if (es) { es.close(); es = null; }
+    if (!code) { setStatus('', 'Sin enlace'); return; }
+    const since = lastId || '12h';
+    es = new EventSource(`https://ntfy.sh/vbt-${code}/sse?since=${encodeURIComponent(since)}`);
+    setStatus('', 'Conectando…');
+    es.onopen = () => setStatus('on', 'Enlazado · ' + code);
+    es.onerror = () => setStatus('err', 'Reconectando…');
+    es.onmessage = (ev) => {
+      let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+      if (m.event !== 'message' || seen.has(m.id)) return;
+      seen.add(m.id); lastId = m.id;
+      let d; try { d = JSON.parse(m.message); } catch (e) { save(); return; }
+      handle(d, m.time);
+    };
+  }
+
+  // ---------------------------------------------------------- eventos del reloj
+  function handle(d, time) {
+    const s = String(d.s || time);
+    if (!series[s]) {
+      const prev = current && series[current];
+      series[s] = { s: Number(s), t0: time, demo: !!d.demo, cut: Number(d.cut) || 20, hz: d.hz,
+                    ex: prev ? prev.ex : ($('exIn').value || ''), kg: prev ? prev.kg : ($('kgIn').value || ''),
+                    reps: [], end: false };
+    }
+    const S = series[s];
+    if (d.t === 'start') { current = s; }
+    if (d.t === 'rep') {
+      current = s;
+      if (!S.reps.some(x => x.r === d.r)) {
+        S.reps.push({ r: d.r, h: d.h, tv: d.tv, loss: d.loss });
+        S.reps.sort((a, b) => a.r - b.r);
+        if (navigator.vibrate) { const z = zone(d.loss, S.cut); navigator.vibrate(z === 'r' ? [300, 120, 300, 120, 300] : z === 'y' ? [100, 80, 100] : 80); }
+        flash = true;
+      }
+    }
+    if (d.t === 'end') { S.end = true; }
+    save();
+    renderLive();
+  }
+  let flash = false;
+
+  // ---------------------------------------------------------- render en vivo
+  function bestOf(reps) { return reps.reduce((m, x) => Math.max(m, x.h), 0); }
+
+  function renderBars(el, reps, cut) {
+    el.innerHTML = '';
+    if (!reps.length) return;
+    const best = bestOf(reps), lo = Math.min(...reps.map(x => x.h)) * 0.8, span = Math.max(best - lo, 0.01);
+    reps.forEach((x, i) => {
+      const b = document.createElement('div'); b.className = 'b';
+      const loss = best ? (best - x.h) / best * 100 : 0;
+      b.style.height = (12 + 88 * (x.h - lo) / span) + '%';
+      b.style.background = COLORS[zone(loss, cut)];
+      b.style.opacity = i === reps.length - 1 ? 1 : 0.55;
+      b.innerHTML = `<em>${f1(x.h)}</em><span>${x.r}</span>`;
+      el.appendChild(b);
+    });
+  }
+
+  function renderLive() {
+    const S = current && series[current];
+    const reps = S ? S.reps : [];
+    const last = reps[reps.length - 1];
+    const cut = S ? S.cut : 20;
+    const loss = last ? last.loss : 0;
+    const z = zone(loss, cut);
+    document.documentElement.style.setProperty('--zone', COLORS[z]);
+    $('repPill').innerHTML = S ? (last ? `SALTO ${last.r}` : 'Sesión iniciada') + (S.demo ? '<span class="demo-tag">DEMO</span>' : '') + (S.end ? ' · fin' : '') : 'Esperando sesión…';
+    $('lossPill').textContent = '−' + Math.round(loss) + '%';
+    $('bigV').textContent = last ? f1(last.h) : '—';
+    $('vmV').textContent = last ? f3(last.tv) : '—';
+    $('vpV').textContent = reps.length ? f1(reps.reduce((s, x) => s + x.h, 0) / reps.length) : '—';
+    $('bestV').textContent = reps.length ? f1(bestOf(reps)) : '—';
+    $('budget').style.width = Math.max(0, 100 - loss / cut * 100) + '%';
+    $('budgetTxt').textContent = S ? `Aviso de fatiga: ${Math.round(cut)}%` + (S.hz ? ` · sensor ${S.hz} Hz` : '') : 'Aviso de fatiga: —';
+    if (S && document.activeElement !== $('exIn')) $('exIn').value = S.ex || '';
+    if (S && document.activeElement !== $('kgIn')) $('kgIn').value = S.kg || '';
+    renderBars($('bars'), reps, cut);
+    const best = bestOf(reps);
+    $('tbody').innerHTML = reps.slice().reverse().map(x => {
+      const l = best ? (best - x.h) / best * 100 : 0;
+      return `<tr><td><span class="z" style="background:${COLORS[zone(l, cut)]}"></span>${x.r}</td><td><b>${f1(x.h)}</b></td><td>${f3(x.tv)}</td><td>${Math.round(x.loss)}%</td></tr>`;
+    }).join('');
+    $('liveEmpty').classList.toggle('hidden', reps.length > 0);
+    if (flash) { flash = false; const c = $('heroCard'); c.classList.remove('flash'); void c.offsetWidth; c.classList.add('flash'); }
+  }
+
+  // ejercicio y carga de la serie actual
+  $('exIn').oninput = () => { if (current && series[current]) { series[current].ex = $('exIn').value; save(); } };
+  $('kgIn').oninput = () => { if (current && series[current]) { series[current].kg = $('kgIn').value; save(); } };
+
+  // ---------------------------------------------------------- historial
+  function sortedSeries() { return Object.values(series).filter(S => S.reps.length).sort((a, b) => b.s - a.s); }
+
+  function renderHist() {
+    const list = sortedSeries();
+    $('histDetail').classList.add('hidden');
+    if (!list.length) { $('histList').innerHTML = '<div class="empty">Todavía no hay sesiones guardadas.</div>'; return; }
+    $('histList').innerHTML = list.map(S => {
+      const best = bestOf(S.reps), lastL = S.reps[S.reps.length - 1].loss;
+      return `<div class="hist-item" data-s="${S.s}">
+        <span class="z" style="width:12px;height:12px;background:${COLORS[zone(lastL, S.cut)]}"></span>
+        <div><div style="font-weight:600">${S.ex || 'CMJ'}${S.kg ? ' · ' + S.kg : ''}${S.demo ? '<span class="demo-tag">DEMO</span>' : ''}</div>
+        <div class="small">${fmtDate(S.s)} · ${S.reps.length} saltos · −${Math.round(lastL)}%</div></div>
+        <div class="v num">${f1(best)}<div class="small" style="font-style:normal;font-weight:500">mejor (cm)</div></div></div>`;
+    }).join('');
+    document.querySelectorAll('.hist-item').forEach(el => el.onclick = () => detail(el.dataset.s));
+  }
+
+  function detail(s) {
+    const S = series[s]; if (!S) return;
+    const best = bestOf(S.reps);
+    const box = $('histDetail');
+    box.classList.remove('hidden');
+    box.innerHTML = `<div class="flex"><div><div style="font-weight:700">${S.ex || 'CMJ'}${S.kg ? ' · ' + S.kg : ''}</div>
+      <div class="small">${fmtDate(S.s)} · corte ${Math.round(S.cut)}%</div></div>
+      <button class="sm danger" style="margin-left:auto" id="delS">Borrar</button></div>
+      <div style="height:30px"></div><div class="bars" id="dBars"></div><div style="height:26px"></div>
+      <table><thead><tr><th>Salto</th><th>Altura cm</th><th>Vuelo s</th><th>Caída</th></tr></thead><tbody>
+      ${S.reps.map(x => `<tr><td>${x.r}</td><td><b>${f1(x.h)}</b></td><td>${f3(x.tv)}</td><td>${Math.round(x.loss)}%</td></tr>`).join('')}
+      </tbody></table>`;
+    renderBars($('dBars'), S.reps, S.cut);
+    $('delS').onclick = () => { if ($('delS').dataset.ok) { delete series[s]; if (current === s) current = null; save(); renderHist(); renderLive(); toast('Serie borrada'); } else { $('delS').dataset.ok = 1; $('delS').textContent = '¿Seguro?'; } };
+    box.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // CSV para Excel (separador ; y coma decimal, formato Chile)
+  $('btnCsv').onclick = () => {
+    const rows = [['Fecha', 'Hora', 'Ejercicio', 'Atleta', 'Serie', 'Demo', 'Corte_%', 'Hz', 'Salto', 'Altura_cm', 'Vuelo_s', 'Caida_%']];
+    sortedSeries().reverse().forEach(S => {
+      const d = new Date(S.s * 1000);
+      S.reps.forEach(x => rows.push([d.toLocaleDateString('es-CL'), d.toLocaleTimeString('es-CL'), S.ex || '', S.kg || '', S.s, S.demo ? 'si' : 'no', S.cut, S.hz || '', x.r,
+        f1(x.h), f3(x.tv), Number(x.loss).toFixed(1)].map(v => String(v).replace('.', ','))));
+    });
+    const csv = '﻿' + rows.map(r => r.map(v => /[;"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v).join(';')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a'); a.href = url; a.download = 'CMJ_saltos.csv'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
+
+  // ---------------------------------------------------------- enlace / ajustes
+  $('btnLink').onclick = () => {
+    const c = $('codeIn').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (c.length !== 6) { toast('El código tiene 6 caracteres'); return; }
+    code = c; store.set('vbt_code', code); lastId = ''; store.set('vbt_last', '');
+    show('live'); connect(); toast('Enlazado con ' + code);
+  };
+  $('codeIn').onkeydown = e => { if (e.key === 'Enter') $('btnLink').click(); };
+  $('btnUnlink').onclick = () => { code = ''; store.set('vbt_code', ''); if (es) es.close(); setStatus('', 'Sin enlace'); show('live'); };
+  $('btnWipe').onclick = () => {
+    const b = $('btnWipe');
+    if (!b.dataset.ok) { b.dataset.ok = 1; b.textContent = 'Toca otra vez para confirmar'; return; }
+    series = {}; current = null; save(); renderLive(); b.dataset.ok = ''; b.textContent = 'Borrar todo el historial'; toast('Historial borrado');
+  };
+
+  // Mantener la pantalla encendida durante el entrenamiento
+  async function keepAwake() { try { if ('wakeLock' in navigator && document.visibilityState === 'visible') await navigator.wakeLock.request('screen'); } catch (e) {} }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { keepAwake(); if (code && (!es || es.readyState === 2)) connect(); } });
+
+  // App instalable
+  if ('serviceWorker' in navigator && location.protocol === 'https:') { navigator.serviceWorker.register('sw.js').catch(() => {}); }
+
+  // Para pruebas sin reloj: VBT.test()
+  window.VBT = { handle, test() {
+    const s = Math.floor(Date.now() / 1000); let best = 0;
+    handle({ t: 'start', s, demo: 1, cut: 20, hz: 25 }, s);
+    [38.2, 37.5, 36.9, 35.1, 34.0, 32.8, 31.6].forEach((v, i) => { best = Math.max(best, v);
+      setTimeout(() => handle({ t: 'rep', s, demo: 1, cut: 10, r: i + 1, h: v, tv: Math.sqrt(8 * v / 100 / 9.80665), loss: (best - v) / best * 100 }, s), i * 700); });
+  } };
+
+  show(code ? 'live' : 'link');
+  renderLive();
+  connect();
+  keepAwake();
+})();
+</script>
+</body>
+</html>
