@@ -281,7 +281,7 @@
       current = s;
       if (!S.reps.some(x => x.r === d.r)) {
         S.reps.push({ r: d.r, h: d.h, tv: d.tv, loss: d.loss, tipo: d.tipo || S.ex,
-                      tv0: d.tv0, aj: d.aj, hz: d.hz, sg: Array.isArray(d.sg) ? d.sg : null, so: d.so, sl: d.sl });
+                      tv0: d.tv0, aj: d.aj, hz: d.hz, v: d.v || 0, sg: Array.isArray(d.sg) ? d.sg : null, so: d.so, sl: d.sl });
         S.reps.sort((a, b) => a.r - b.r);
         if (navigator.vibrate) { const z = zone(d.loss, S.cut); navigator.vibrate(z === 'r' ? [300, 120, 300, 120, 300] : z === 'y' ? [100, 80, 100] : 80); }
         flash = true;
@@ -391,12 +391,12 @@
   }
   function calibData() {
     const P = [];
-    Object.values(series).forEach(S => { if (S.demo) return; S.reps.forEach(x => { if (x.ref > 0) P.push({ x, ref: Number(x.ref), t0: rawTv(x) }); }); });
+    Object.values(series).forEach(S => { if (S.demo) return; S.reps.forEach(x => { if (x.ref > 0 && (x.v || 0) >= 19) P.push({ x, ref: Number(x.ref), t0: rawTv(x) }); }); });
     return P;
   }
   function renderCalib() {
     const P = calibData(), box = $('calib'); if (!box) return;
-    if (!P.length) { box.innerHTML = '<div class="small" style="line-height:1.5">Todavía no hay saltos con valor de referencia.</div>'; return; }
+    if (!P.length) { box.innerHTML = '<div class="small" style="line-height:1.5">Todavía no hay saltos con valor de referencia (solo cuentan los saltos medidos con el reloj v19 o superior).</div>'; return; }
     const d = P.map(p => (tvFromH(p.ref) - p.t0) * 1000);               // ms que faltan (o sobran) al vuelo medido
     let rec = Math.round(mean(d) / 5) * 5; rec = Math.max(-60, Math.min(120, rec));
     const errNow = P.map(p => Number(p.x.h) - p.ref);
